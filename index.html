@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>APP IYOL - Sistema de Evidencias</title>
+  <title>APP IYOL - Modo Offline</title>
   <style>
     :root { --primary: #2e7d32; --secondary: #1b5e20; --bg: #f8f9fa; }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: var(--bg); display: flex; justify-content: center; padding: 20px; }
@@ -13,11 +13,10 @@
     
     label { display: block; margin-top: 15px; font-weight: bold; color: #555; font-size: 0.9em; }
     input { width: 100%; padding: 12px; margin-top: 5px; box-sizing: border-box; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; }
-    input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 5px rgba(46,125,50,0.2); }
     
     button { width: 100%; padding: 15px; margin-top: 25px; background-color: var(--primary); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s; }
     button:hover { background-color: var(--secondary); }
-    button:active { transform: scale(0.98); }
+    button:disabled { background-color: #ccc; }
 
     #status-bar { margin-top: 20px; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 0.85em; }
     .online-status { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
@@ -48,10 +47,19 @@
 </div>
 
 <script>
-  // --- CONFIGURACIÓN ---
+  // --- 1. CONFIGURACIÓN ---
   const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxdajsaW2HhTFWWAA1p1L2fKzsuu8GZTNaL-cZExvoCCl7xo11Eka5-V2el-PD3KFVK/exec";
   
-  // --- INICIALIZAR BASE DE DATOS LOCAL (IndexedDB) ---
+  // --- 2. REGISTRO DE SERVICE WORKER (Para abrir sin internet) ---
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker registrado con éxito'))
+        .catch(err => console.error('Error al registrar Service Worker', err));
+    });
+  }
+
+  // --- 3. BASE DE DATOS LOCAL (IndexedDB) ---
   let db;
   const request = indexedDB.open("IyolOfflineDB", 1);
 
@@ -68,7 +76,7 @@
     if (navigator.onLine) sincronizarPendientes();
   };
 
-  // --- MONITOREO DE CONEXIÓN ---
+  // --- 4. MONITOREO DE CONEXIÓN ---
   window.addEventListener('online', () => {
     actualizarEstado();
     sincronizarPendientes();
@@ -81,19 +89,19 @@
       statusDiv.innerHTML = "● EN LÍNEA: Listo para subir";
       statusDiv.className = "online-status";
     } else {
-      statusDiv.innerHTML = "● MODO OFFLINE: Se guardará localmente";
+      statusDiv.innerHTML = "● MODO OFFLINE: Se guardará en el celular";
       statusDiv.className = "offline-status";
     }
   }
 
-  // --- LÓGICA DE CAPTURA Y ENVÍO ---
+  // --- 5. LÓGICA DE CAPTURA Y ENVÍO ---
   async function procesarEnvio() {
     const mainFolder = document.getElementById("mainFolder").value.trim();
     const subFolder = document.getElementById("subFolder").value.trim();
     const files = document.getElementById("fotos").files;
 
     if (!mainFolder || !subFolder || files.length === 0) {
-      alert("⚠️ Por favor rellena todos los campos y selecciona fotos.");
+      alert("⚠️ Rellena los campos y selecciona fotos.");
       return;
     }
 
@@ -103,7 +111,7 @@
     const images = [];
     for (let i = 0; i < files.length; i++) {
       const base64 = await toBase64(files[i]);
-      // Renombrado solicitado: NombreCarpetaHija_1, _2, etc.
+      // Nombre solicitado: CarpetaHija_Numero
       images.push({
         name: `${subFolder}_${i + 1}.jpg`, 
         data: base64
@@ -137,7 +145,7 @@
       body: JSON.stringify(data)
     })
     .then(() => {
-      alert("✅ ¡Éxito! Evidencia enviada a la nube.");
+      alert("✅ ¡Éxito! Evidencia enviada.");
       finalizarProceso();
     })
     .catch(err => {
@@ -150,7 +158,7 @@
     const transaction = db.transaction(["pendientes"], "readwrite");
     const store = transaction.objectStore("pendientes");
     store.add(data);
-    alert("📡 Sin internet: La evidencia se guardó en el celular y se subirá sola al recuperar señal.");
+    alert("📡 Guardado en memoria local. Se subirá automáticamente al recuperar internet.");
     finalizarProceso();
   }
 
@@ -172,7 +180,6 @@
         }).then(() => {
           const deleteTrans = db.transaction(["pendientes"], "readwrite");
           deleteTrans.objectStore("pendientes").delete(key);
-          console.log("Pendiente sincronizado y borrado.");
         });
         
         cursor.continue();
