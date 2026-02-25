@@ -1,198 +1,219 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <base target="_top">
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>APP IYOL - Modo Offline</title>
-  <style>
-    :root { --primary: #2e7d32; --secondary: #1b5e20; --bg: #f8f9fa; }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: var(--bg); display: flex; justify-content: center; padding: 20px; }
-    .container { width: 100%; max-width: 450px; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-    h2 { color: var(--primary); text-align: center; margin-bottom: 25px; border-bottom: 2px solid var(--bg); padding-bottom: 10px; }
-    
-    label { display: block; margin-top: 15px; font-weight: bold; color: #555; font-size: 0.9em; }
-    input { width: 100%; padding: 12px; margin-top: 5px; box-sizing: border-box; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; }
-    
-    button { width: 100%; padding: 15px; margin-top: 25px; background-color: var(--primary); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s; }
-    button:hover { background-color: var(--secondary); }
-    button:disabled { background-color: #ccc; }
-
-    #status-bar { margin-top: 20px; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 0.85em; }
-    .online-status { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
-    .offline-status { background-color: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; }
-    
-    .loader { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORPORATIVO IYOL - Cámara Offline</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #e3e3f4; }
+        #view-menu { width: 100%; text-align: center; }
+        .tab { background-color: #283593; color: white; padding: 30px 20px; border-radius: 15px; display: inline-block; box-shadow: 0 10px 20px rgba(0,0,0,0.2); width: 90%; max-width: 400px; }
+        .btn-new { background-color: #ff7043; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 20px; font-weight: bold; }
+        #view-camera { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 800px; padding: 10px; }
+        .info-bar { background: white; padding: 10px; border-radius: 8px; width: 100%; margin-bottom: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        video { width: 100%; border-radius: 10px; background: #000; }
+        .controls { display: flex; justify-content: center; gap: 15px; margin-top: 15px; width: 100%; }
+        .btn-action { border: none; padding: 15px 20px; border-radius: 8px; font-size: 16px; color: white; font-weight: bold; cursor: pointer; flex: 1; }
+        .btn-shot { background-color: #2196f3; }
+        .btn-save { background-color: #4caf50; }
+        #status { margin-top: 20px; font-weight: bold; color: #333; text-align: center;}
+        
+        /* Estilo para el contador de pendientes */
+        #sync-banner {
+            display: none; background: #ff9800; color: white; padding: 10px;
+            width: 100%; position: fixed; top: 0; left: 0; text-align: center;
+            font-size: 14px; font-weight: bold; z-index: 1000;
+        }
+    </style>
 </head>
 <body>
 
-<div class="container">
-  <h2>APP IYOL</h2>
-  
-  <label>Usuario (Carpeta Padre):</label>
-  <input type="text" id="mainFolder" placeholder="Ej: Carlos" required>
-  
-  <label>Evidencia (Carpeta Hija):</label>
-  <input type="text" id="subFolder" placeholder="Ej: 8684t" required>
-  
-  <label>Seleccionar Fotos:</label>
-  <input type="file" id="fotos" accept="image/*" multiple>
-  
-  <button id="btnEnviar" onclick="procesarEnvio()">ENVIAR EVIDENCIA</button>
-  
-  <div class="loader" id="loader"></div>
-  <div id="status-bar" class="online-status">Verificando conexión...</div>
-</div>
+    <div id="sync-banner">📡 Tienes sesiones pendientes por subir. Conéctate a internet para sincronizar.</div>
 
-<script>
-  // --- 1. CONFIGURACIÓN ---
-  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxdajsaW2HhTFWWAA1p1L2fKzsuu8GZTNaL-cZExvoCCl7xo11Eka5-V2el-PD3KFVK/exec";
-  
-  // --- 2. REGISTRO DE SERVICE WORKER (Para abrir sin internet) ---
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('Service Worker registrado con éxito'))
-        .catch(err => console.error('Error al registrar Service Worker', err));
-    });
-  }
+    <div id="view-menu">
+        <div class="tab">
+            <h1>CORPORATIVO IYOL</h1>
+            <p>📸 Sistema de Evidencia</p>
+            <p id="local-count" style="font-size: 0.8em; color: #ffccbc;"></p>
+            <button class="btn-new" onclick="startSession()">📂 Iniciar Nueva Carpeta</button>
+        </div>
+    </div>
 
-  // --- 3. BASE DE DATOS LOCAL (IndexedDB) ---
-  let db;
-  const request = indexedDB.open("IyolOfflineDB", 1);
+    <div id="view-camera">
+        <div class="info-bar">
+            <h3>👤 <span id="lbl-user">---</span></h3>
+            <p>📂 <span id="lbl-job">---</span></p>
+            <p>Fotos tomadas: <span id="count" style="color:#e65100; font-weight:bold;">0</span></p>
+        </div>
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas" style="display:none;"></canvas>
+        <div class="controls" id="controls-area">
+            <button class="btn-action btn-shot" onclick="takePhoto()">📷 TOMAR FOTO</button>
+            <button class="btn-action btn-save" onclick="finishSession()">💾 FINALIZAR</button>
+        </div>
+        <div id="status"></div>
+    </div>
+    
+    <audio id="shutterSound" src="https://www.soundjay.com/mechanical/sounds/camera-shutter-click-08.mp3"></audio>
 
-  request.onupgradeneeded = (e) => {
-    db = e.target.result;
-    if (!db.objectStoreNames.contains("pendientes")) {
-      db.createObjectStore("pendientes", { autoIncrement: true });
-    }
-  };
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbylKfa7j3CCVd3b_JUzhwHfFMuyszIyO-MBdcQIiO-tCqACGfIL-d6gOkOISJOEBNedIQ/exec";
 
-  request.onsuccess = (e) => { 
-    db = e.target.result; 
-    actualizarEstado(); 
-    if (navigator.onLine) sincronizarPendientes();
-  };
+        let userFolder = "";
+        let jobFolder = "";
+        let photoQueue = [];
+        let stream = null;
+        let db;
 
-  // --- 4. MONITOREO DE CONEXIÓN ---
-  window.addEventListener('online', () => {
-    actualizarEstado();
-    sincronizarPendientes();
-  });
-  window.addEventListener('offline', actualizarEstado);
+        // --- 1. BASE DE DATOS LOCAL ---
+        const dbReq = indexedDB.open("IyolDB", 1);
+        dbReq.onupgradeneeded = e => {
+            db = e.target.result;
+            db.createObjectStore("pendientes", { autoIncrement: true });
+        };
+        dbReq.onsuccess = e => {
+            db = e.target.result;
+            checkPendingSync();
+        };
 
-  function actualizarEstado() {
-    const statusDiv = document.getElementById("status-bar");
-    if (navigator.onLine) {
-      statusDiv.innerHTML = "● EN LÍNEA: Listo para subir";
-      statusDiv.className = "online-status";
-    } else {
-      statusDiv.innerHTML = "● MODO OFFLINE: Se guardará en el celular";
-      statusDiv.className = "offline-status";
-    }
-  }
+        // --- 2. REGISTRO SERVICE WORKER (Para abrir sin internet) ---
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js').then(() => console.log("SW Listo"));
+        }
 
-  // --- 5. LÓGICA DE CAPTURA Y ENVÍO ---
-  async function procesarEnvio() {
-    const mainFolder = document.getElementById("mainFolder").value.trim();
-    const subFolder = document.getElementById("subFolder").value.trim();
-    const files = document.getElementById("fotos").files;
+        // --- 3. INICIAR SESIÓN ---
+        function startSession() {
+            let u = prompt("PASO 1: Ingresa TU NOMBRE:");
+            if (!u) return;
+            let j = prompt("PASO 2: Nombre de la EVIDENCIA (Carpeta Hija):");
+            if (!j) return;
 
-    if (!mainFolder || !subFolder || files.length === 0) {
-      alert("⚠️ Rellena los campos y selecciona fotos.");
-      return;
-    }
+            userFolder = u;
+            jobFolder = j;
+            lblUser.innerText = userFolder;
+            lblJob.innerText = jobFolder;
+            photoQueue = [];
+            document.getElementById('count').innerText = "0";
+            document.getElementById('view-menu').style.display = 'none';
+            document.getElementById('view-camera').style.display = 'flex';
+            initCamera();
+        }
 
-    document.getElementById("btnEnviar").disabled = true;
-    document.getElementById("loader").style.display = "block";
+        function initCamera() {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                .then(s => { stream = s; document.getElementById('video').srcObject = stream; })
+                .catch(e => alert("Error cámara: " + e.message));
+        }
 
-    const images = [];
-    for (let i = 0; i < files.length; i++) {
-      const base64 = await toBase64(files[i]);
-      // Nombre solicitado: CarpetaHija_Numero
-      images.push({
-        name: `${subFolder}_${i + 1}.jpg`, 
-        data: base64
-      });
-    }
+        // --- 4. TOMAR FOTOS ---
+        function takePhoto() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
 
-    const payload = {
-      mainFolder: mainFolder,
-      subFolder: subFolder,
-      images: images
-    };
+            const shutterSound = document.getElementById('shutterSound');
+            if(shutterSound) shutterSound.play().catch(() => {});
 
-    if (navigator.onLine) {
-      enviarAGoogle(payload);
-    } else {
-      guardarLocal(payload);
-    }
-  }
+            const data = canvas.toDataURL('image/jpeg', 0.6); // Bajamos calidad a 0.6 para ahorrar espacio local
+            
+            // Nombre solicitado: CarpetaHija_Numero (Ej: 8684t_1.jpg)
+            const name = `${jobFolder}_${photoQueue.length + 1}.jpg`;
 
-  const toBase64 = file => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = error => reject(error);
-  });
+            photoQueue.push({ name: name, data: data });
+            document.getElementById('count').innerText = photoQueue.length;
+            document.getElementById('status').innerText = `✅ Foto #${photoQueue.length} capturada`;
+        }
 
-  function enviarAGoogle(data) {
-    fetch(WEB_APP_URL, {
-      method: "POST",
-      mode: "no-cors",
-      body: JSON.stringify(data)
-    })
-    .then(() => {
-      alert("✅ ¡Éxito! Evidencia enviada.");
-      finalizarProceso();
-    })
-    .catch(err => {
-      console.error(err);
-      guardarLocal(data);
-    });
-  }
+        // --- 5. FINALIZAR Y GUARDAR/SUBIR ---
+        async function finishSession() {
+            if (photoQueue.length === 0) return alert("No hay fotos.");
+            
+            const payload = {
+                mainFolder: userFolder,
+                subFolder: jobFolder,
+                images: photoQueue
+            };
 
-  function guardarLocal(data) {
-    const transaction = db.transaction(["pendientes"], "readwrite");
-    const store = transaction.objectStore("pendientes");
-    store.add(data);
-    alert("📡 Guardado en memoria local. Se subirá automáticamente al recuperar internet.");
-    finalizarProceso();
-  }
+            if (navigator.onLine) {
+                document.getElementById('status').innerText = "⏳ Subiendo a Drive...";
+                enviarDrive(payload, true);
+            } else {
+                guardarLocal(payload);
+            }
+        }
 
-  function sincronizarPendientes() {
-    const transaction = db.transaction(["pendientes"], "readwrite");
-    const store = transaction.objectStore("pendientes");
-    const cursorRequest = store.openCursor();
+        function guardarLocal(payload) {
+            const trans = db.transaction(["pendientes"], "readwrite");
+            trans.objectStore("pendientes").add(payload);
+            alert("📡 SIN CONEXIÓN: Las fotos se guardaron en el celular. Se subirán solas al recuperar internet.");
+            location.reload();
+        }
 
-    cursorRequest.onsuccess = (e) => {
-      const cursor = e.target.result;
-      if (cursor) {
-        const data = cursor.value;
-        const key = cursor.key;
-        
-        fetch(WEB_APP_URL, {
-          method: "POST",
-          mode: "no-cors",
-          body: JSON.stringify(data)
-        }).then(() => {
-          const deleteTrans = db.transaction(["pendientes"], "readwrite");
-          deleteTrans.objectStore("pendientes").delete(key);
-        });
-        
-        cursor.continue();
-      }
-    };
-  }
+        function enviarDrive(payload, recargar) {
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify(payload)
+            }).then(() => {
+                if(recargar) {
+                    alert("✅ Enviado correctamente.");
+                    location.reload();
+                }
+            }).catch(() => {
+                if(recargar) guardarLocal(payload);
+            });
+        }
 
-  function finalizarProceso() {
-    document.getElementById("btnEnviar").disabled = false;
-    document.getElementById("loader").style.display = "none";
-    document.getElementById("fotos").value = "";
-  }
-</script>
+        // --- 6. SINCRONIZACIÓN AUTOMÁTICA ---
+        function checkPendingSync() {
+            const trans = db.transaction(["pendientes"], "readonly");
+            const store = trans.objectStore("pendientes");
+            const countReq = store.count();
 
+            countReq.onsuccess = () => {
+                const total = countReq.result;
+                const banner = document.getElementById('sync-banner');
+                const localMsg = document.getElementById('local-count');
+                
+                if (total > 0) {
+                    banner.style.display = "block";
+                    banner.innerText = `📡 Tienes ${total} sesión(es) pendiente(s) por subir.`;
+                    localMsg.innerText = `Pendientes localmente: ${total}`;
+                    
+                    if (navigator.onLine) {
+                        sincronizarTodo();
+                    }
+                } else {
+                    banner.style.display = "none";
+                    localMsg.innerText = "";
+                }
+            };
+        }
+
+        function sincronizarTodo() {
+            const trans = db.transaction(["pendientes"], "readwrite");
+            const store = trans.objectStore("pendientes");
+            store.openCursor().onsuccess = e => {
+                const cursor = e.target.result;
+                if (cursor) {
+                    const data = cursor.value;
+                    const id = cursor.key;
+                    
+                    fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(data) })
+                    .then(() => {
+                        const delTrans = db.transaction(["pendientes"], "readwrite");
+                        delTrans.objectStore("pendientes").delete(id);
+                        console.log("Sincronizado ID:", id);
+                    });
+                    cursor.continue();
+                }
+            };
+        }
+
+        window.addEventListener('online', checkPendingSync);
+    </script>
 </body>
 </html>
