@@ -1,10 +1,10 @@
-const CACHE_NAME = 'iyol-v1';
+const CACHE_NAME = 'iyol-v2';
 const ASSETS = [
   './',
   './index.html'
 ];
 
-// Instalar y guardar en caché
+// Instala la app en la memoria del celular
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -13,11 +13,9 @@ self.addEventListener('install', (e) => {
   );
 });
 
-// Responder desde el caché si no hay red
+// Sirve la app desde la memoria si no hay internet
 self.addEventListener('fetch', (e) => {
   e.respondWith(
-    caches.match(e.request).then((response) => {
-      return response || fetch(e.request);
-    })
+    caches.match(e.request).then((res) => res || fetch(e.request))
   );
 });
