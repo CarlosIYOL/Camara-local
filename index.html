@@ -1,1 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORPORATIVO IYOL - Cámara Offline</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #e3e3f4; }
+        #view-menu { width: 100%; text-align: center; }
+        .tab { background-color: #283593; color: white; padding: 30px 20px; border-radius: 15px; display: inline-block; box-shadow: 0 10px 20px rgba(0,0,0,0.2); width: 90%; max-width: 400px; }
+        .btn-new { background-color: #ff7043; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 20px; font-weight: bold; }
+        #view-camera { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 800px; padding: 10px; }
+        .info-bar { background: white; padding: 10px; border-radius: 8px; width: 100%; margin-bottom: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        video { width: 100%; border-radius: 10px; background: #000; }
+        .controls { display: flex; justify-content: center; gap: 15px; margin-top: 15px; width: 100%; }
+        .btn-action { border: none; padding: 15px 20px; border-radius: 8px; font-size: 16px; color: white; font-weight: bold; cursor: pointer; flex: 1; }
+        .btn-shot { background-color: #2196f3; }
+        .btn-save { background-color: #4caf50; }
+        #status { margin-top: 20px; font-weight: bold; color: #333; text-align: center; }
+        #sync-status { background: #ff9800; color: white; padding: 10px; width: 100%; position: fixed; top: 0; display: none; text-align: center; font-weight: bold; z-index: 100; }
+    </style>
+</head>
+<body>
 
+    <div id="sync-status">📡 Pendientes por subir: <span id="pendientes-txt">0</span></div>
+
+    <div id="view-menu">
+        <div class="tab">
+            <h1>CORPORATIVO IYOL</h1>
+            <p>📸 Sistema de Evidencia</p>
+            <button class="btn-new" onclick="startSession()">📂 Iniciar Nueva Carpeta</button>
+        </div>
+    </div>
+
+    <div id="view-camera">
+        <div class="info-bar">
+            <h3>👤 <span id="lbl-user">---</span></h3>
+            <p>📂 <span id="lbl-job">---</span></p>
+            <p>Fotos: <span id="count" style="color:#e65100; font-weight:bold;">0</span></p>
+        </div>
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas" style="display:none;"></canvas>
+        <div class="controls" id="controls-area">
+            <button class="btn-action btn-shot" onclick="takePhoto()">📷 FOTO</button>
+            <button class="btn-action btn-save" onclick="finishSession()">💾 FINALIZAR</button>
+        </div>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbylKfa7j3CCVd3b_JUzhwHfFMuyszIyO-MBdcQIiO-tCqACGfIL-d6gOkOISJOEBNedIQ/exec";
+        
+        let userFolder = "";
+        let jobFolder = "";
+        let photoQueue = [];
+        let stream = null;
+        let db;
+
+        // 1. REGISTRAR SERVICE WORKER (Para modo Offline)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js').then(() => console.log("Offline Ready"));
+        }
+
+        // 2. BASE DE DATOS LOCAL
+        const request = indexedDB.open("IyolOffline", 1);
+        request.onupgradeneeded = e => {
+            db = e.target.result;
+            db.createObjectStore("cola", { autoIncrement: true });
+        };
+        request.onsuccess = e => {
+            db = e.target.result;
+            actualizarContadorPendientes();
+        };
+
+        function startSession() {
+            let u = prompt("PASO 1: Tu Nombre:");
+            let j = prompt("PASO 2: Nombre de la Evidencia (Ticket):");
+            if (!u || !j) return;
+
+            userFolder = u;
+            jobFolder = j;
+            document.getElementById('lbl-user').innerText = userFolder;
+            document.getElementById('lbl-job').innerText = jobFolder;
+            photoQueue = [];
+            document.getElementById('count').innerText = "0";
+            document.getElementById('view-menu').style.display = 'none';
+            document.getElementById('view-camera').style.display = 'flex';
+            initCamera();
+        }
+
+        function initCamera() {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(s => { stream = s; document.getElementById('video').srcObject = stream; })
+            .catch(e => alert("Error cámara: Asegúrate de estar en HTTPS y dar permisos."));
+        }
+
+        function takePhoto() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+
+            // Nombre solicitado: CarpetaHija_Numero.jpg
+            const name = `${jobFolder}_${photoQueue.length + 1}.jpg`;
+            const data = canvas.toDataURL('image/jpeg', 0.6);
+
+            photoQueue.push({ name: name, data: data });
+            document.getElementById('count').innerText = photoQueue.length;
+            document.getElementById('status').innerText = "✅ Foto capturada";
+        }
+
+        function finishSession() {
+            if (photoQueue.length === 0) return;
+            const payload = { mainFolder: userFolder, subFolder: jobFolder, images: photoQueue };
+            
+            if (navigator.onLine) {
+                document.getElementById('status').innerText = "⏳ Enviando...";
+                enviarADrive(payload);
+            } else {
+                guardarLocal(payload);
+            }
+        }
+
+        function guardarLocal(p) {
+            const trans = db.transaction(["cola"], "readwrite");
+            trans.objectStore("cola").add(p);
+            alert("📡 Sin señal. Se guardó en el celular.");
+            location.reload();
+        }
+
+        function enviarADrive(p) {
+            fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(p) })
+            .then(() => { alert("✅ Éxito"); location.reload(); })
+            .catch(() => guardarLocal(p));
+        }
+
+        function actualizarContadorPendientes() {
+            const store = db.transaction("cola").objectStore("cola");
+            const countReq = store.count();
+            countReq.onsuccess = () => {
+                const total = countReq.result;
+                const banner = document.getElementById('sync-status');
+                if (total > 0) {
+                    banner.style.display = 'block';
+                    document.getElementById('pendientes-txt').innerText = total;
+                    if (navigator.onLine) sincronizar();
+                } else {
+                    banner.style.display = 'none';
+                }
+            };
+        }
+
+        function sincronizar() {
+            const store = db.transaction("cola", "readwrite").objectStore("cola");
+            store.openCursor().onsuccess = e => {
+                const cursor = e.target.result;
+                if (cursor) {
+                    const data = cursor.value;
+                    const key = cursor.key;
+                    fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(data) })
+                    .then(() => {
+                        const delTrans = db.transaction("cola", "readwrite");
+                        delTrans.objectStore("cola").delete(key);
+                        actualizarContadorPendientes();
+                    });
+                    cursor.continue();
+                }
+            };
+        }
+
+        window.addEventListener('online', actualizarContadorPendientes);
+    </script>
+</body>
+</html>
